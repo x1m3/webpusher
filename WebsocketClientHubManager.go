@@ -1,24 +1,20 @@
-package main
+package webpusher
 
 import (
 	"sync"
 	"log"
 	"github.com/gorilla/websocket"
+	"net/http"
 )
 
 type WebsocketClientHubManager struct {
 	sync.RWMutex
 	connectionList map[int64]*WebsocketClient
-	wsUpgrader     websocket.Upgrader
 }
 
 func NewWebsocketClientHubManager() *WebsocketClientHubManager {
 	hub := new(WebsocketClientHubManager)
 	hub.connectionList = make(map[int64]*WebsocketClient)
-	hub.wsUpgrader = websocket.Upgrader{
-		ReadBufferSize: 1024,
-		WriteBufferSize: 1024,
-	}
 	return hub
 }
 

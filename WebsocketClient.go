@@ -1,4 +1,4 @@
-package main
+package webpusher
 
 import (
 	"github.com/gorilla/websocket"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 	"log"
+	"net/http"
 )
 
 type WebsocketClient struct {
@@ -14,18 +15,30 @@ type WebsocketClient struct {
 	sync.Mutex
 }
 
-func NewWebsocketClient(id int64, conn *websocket.Conn) *WebsocketClient {
+func NewWebsocketClient(id int64, w http.ResponseWriter, r *http.Request) (*WebsocketClient, error) {
+
+	wsUpgrader := websocket.Upgrader{
+		ReadBufferSize: 1024,
+		WriteBufferSize: 1024,
+	}
+
+	conn, err := wsUpgrader.Upgrade(w, r, nil)
+	if (err != nil) {
+		return nil, err
+	}
+
 	client := new(WebsocketClient)
+	client.conn = conn
 	client.id = id
-	conn.SetReadLimit(512)
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil
+
+	client.conn.SetReadLimit(512)
+	client.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	client.conn.SetPongHandler(func(string) error {
+		client.conn.SetReadDeadline(time.Now().Add(60 * time.Second)); return nil
 	})
 	go client.readLoop()
 	go client.sendPings(10 * time.Second)
-	client.conn = conn
-	return client
+	return client, nil
 }
 
 func (this *WebsocketClient) Send(message []byte) error {
@@ -41,13 +54,13 @@ func (this *WebsocketClient) Id() int64 {
 	return this.id
 }
 
-func (this * WebsocketClient) sendPing() error {
+func (this *WebsocketClient) sendPing() error {
 	this.Lock(); defer this.Unlock()
-	this.conn.SetWriteDeadline(time.Now().Add(10*time.Second))
+	this.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	return this.conn.WriteMessage(websocket.PingMessage, []byte{});
 }
 
-func (this * WebsocketClient) sendPings(d time.Duration) {
+func (this *WebsocketClient) sendPings(d time.Duration) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	defer this.conn.Close()
